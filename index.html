@@ -75,6 +75,90 @@
     </audio>
   </div>
 
+  <div>
+
+<section class="menu">
+  <div class="item">
+    <h3>☕ Coffee</h3>
+    <p>Freshly brewed hot coffee</p>
+    <p><strong>$2.50</strong></p>
+    <input type="number" min="1" value="1" class="qty" id="coffeeQty">
+    <button onclick="addToCart('Coffee', 2.5, document.getElementById('coffeeQty').value)">Add to Cart</button>
+  </div>
+
+  <div class="item">
+    <h3>🥐 Croissant</h3>
+    <p>Buttery French pastry</p>
+    <p><strong>$3.00</strong></p>
+    <input type="number" min="1" value="1" class="qty" id="croissantQty">
+    <button onclick="addToCart('Croissant', 3, document.getElementById('croissantQty').value)">Add to Cart</button>
+  </div>
+
+  <div class="item">
+    <h3>🥪 Breakfast Sandwich</h3>
+    <p>Egg, cheese, and bacon on a roll</p>
+    <p><strong>$5.00</strong></p>
+    <input type="number" min="1" value="1" class="qty" id="sandwichQty">
+    <button onclick="addToCart('Breakfast Sandwich', 5, document.getElementById('sandwichQty').value)">Add to Cart</button>
+  </div>
+
+  <div class="item">
+    <h3>🍓 Fruit Bowl</h3>
+    <p>Fresh seasonal fruits</p>
+    <p><strong>$4.00</strong></p>
+    <input type="number" min="1" value="1" class="qty" id="fruitQty">
+    <button onclick="addToCart('Fruit Bowl', 4, document.getElementById('fruitQty').value)">Add to Cart</button>
+  </div>
+</section>
+
+<style>
+  .menu {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.2rem;
+    padding: 1rem;
+  }
+  .item {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: center;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.15);
+  }
+  .item h3 { margin: 0.5rem 0; }
+  .item input.qty {
+    width: 60px;
+    text-align: center;
+    margin: 0.5rem 0;
+    padding: 0.3rem;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+  }
+  .item button {
+    background: #ff9f43;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+  .item button:hover {
+    background: #ff6f00;
+  }
+  .item button:active {
+    transform: scale(0.95);
+  }
+</style>
+
+  </div>
+  
+
   <script>
     // ---------- Data ----------
     const tracks = [
