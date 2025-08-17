@@ -26,7 +26,245 @@
     </div>
   </div>
 
+  <!-- Folder structure expected:
+       /audio/audio1.mp3, audio2.mp3, ...
+       /captions/audio1.vtt, audio2.vtt, ... (optional)
+       The JS array below maps each pair. If a .vtt is missing, static quote text shows. -->
 
+  <div class="player" role="region" aria-label="CE Quotes Player">
+    <div class="topbar">
+      <div class="title">CE Quotes Player</div>
+      <div class="spacer"></div>
+      <button id="themeToggle" class="icon-btn" aria-label="Toggle theme">Theme</button>
+    </div>
+
+    <div class="cover" aria-hidden="true">Audio + Quotes Sync</div>
+
+    <button id="likeBtn" class="like" aria-label="Toggle like" title="Like">❤</button>
+
+    <div class="quote-box" id="quoteBox" aria-live="polite">
+      <div id="quoteText" class="quote">Loading…</div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="bar" id="bar" aria-label="Seek bar" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="bar-fill" id="barFill"></div>
+      </div>
+      <div class="time-row"><span id="tcur">0:00</span><span id="tdur">0:00</span></div>
+    </div>
+
+    <div class="controls">
+      <button class="ctl" id="prevBtn" aria-label="Previous">⏮</button>
+      <button class="ctl primary" id="playPauseBtn" aria-label="Play / Pause">▶</button>
+      <button class="ctl" id="nextBtn" aria-label="Next">⏭</button>
+    </div>
+
+    <div class="bottom">
+      <div class="chips">
+        <span class="chip" id="chipShuffle" aria-pressed="false">Shuffle</span>
+        <span class="chip" id="chipRepeat" aria-pressed="false">Repeat</span>
+        <span class="chip" id="chipAutonext" aria-pressed="true">Autonext</span>
+      </div>
+      <div id="status">Track <span id="idx">1</span>/<span id="count">?</span></div>
+    </div>
+
+    <div class="playlist" id="playlist" aria-label="Playlist"></div>
+
+    <audio id="audio" preload="metadata">
+      <track id="captionTrack" kind="subtitles" srclang="en" label="Transcript" default>
+    </audio>
+  </div>
+
+  <script>
+    // ---------- Data ----------
+    const tracks = [
+      { id: 'audio1', quote: `Grego acquires a .38 Special and has planned the greatest of all his Neolithic adventures.\nHe’s still clumsy with the .38, but he’s mastered the Desert Eagle and loves the sound of the shell rain.`, audio: './audio/audio1.mp3', vtt: './captions/audio1.vtt' },
+      { id: 'audio2', quote: `Regarding the unresolved process, the woman has not asked about anyone again, neither her daughter nor any specific person.\nShe said she didn't have a phone number, but —in alternate and metaphysical realities— she was in a dream.`, audio: './audio/audio2.mp3', vtt: './captions/audio2.vtt' },
+      { id: 'audio3', quote: `Her composition has been the greatest enigma of the people, and there was no return.\nBut… that illness is common in his family!`, audio: './audio/audio3.mp3', vtt: './captions/audio3.vtt' },
+      { id: 'audio4', quote: `Truly — although many say otherwise — the discomfort was always present.\nIt appeared on the antipodes of the figure, and despite so much effort, always the other side contradicted it.\nNo\nbut\nyes`, audio: './audio/audio4.mp3', vtt: './captions/audio4.vtt' },
+      { id: 'audio5', quote: `He realized that the sound in which he would meet Rafaela before dying had already described itself.\nYes, it described itself in that sixteen we all know, it has a steady rhythm.\nIt’s the blend of the sound of a sphere that does not exist within time.`, audio: './audio/audio5.mp3', vtt: './captions/audio5.vtt' },
+      { id: 'audio6', quote: `Time, little time — we hate the time that saw us born and will see us die, yet will never leave us with the same faces.`, audio: './audio/audio6.mp3', vtt: './captions/audio6.vtt' },
+      { id: 'audio7', quote: `The sound is enough, Grego. Think: the music of the spheres.`, audio: './audio/audio7.mp3', vtt: './captions/audio7.vtt' },
+    ];
+
+    // ---------- Elements ----------
+    const audio = document.getElementById('audio');
+    const trackEl = document.getElementById('captionTrack');
+    const playBtn = document.getElementById('playPauseBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const likeBtn = document.getElementById('likeBtn');
+    const themeToggle = document.getElementById('themeToggle');
+    const quoteText = document.getElementById('quoteText');
+    const quoteBox = document.getElementById('quoteBox');
+    const bar = document.getElementById('bar');
+    const barFill = document.getElementById('barFill');
+    const tcur = document.getElementById('tcur');
+    const tdur = document.getElementById('tdur');
+    const idxEl = document.getElementById('idx');
+    const countEl = document.getElementById('count');
+    const playlist = document.getElementById('playlist');
+
+    // ---------- State ----------
+    let i = 0; // current index
+    let shuffle = false; let repeat = false; let autonext = true;
+    const LIKES_KEY = 'ce.quote.likes';
+    const LAST_KEY = 'ce.quote.last';
+
+    countEl.textContent = tracks.length;
+
+    // ---------- Helpers ----------
+    const fmt = s => {
+      if (!Number.isFinite(s)) return '0:00';
+      const m = Math.floor(s/60), r = Math.floor(s%60);
+      return m + ':' + String(r).padStart(2,'0');
+    }
+
+    function saveLast() {
+      try { localStorage.setItem(LAST_KEY, JSON.stringify({ i, t: audio.currentTime })); } catch(_){}
+    }
+    function restoreLast() {
+      try { const v = JSON.parse(localStorage.getItem(LAST_KEY)||'null'); if (v && tracks[v.i]) { i = v.i; setTrack(i, false); audio.currentTime = v.t||0; } } catch(_){}
+    }
+
+    function isLiked(id){ try { const set = new Set(JSON.parse(localStorage.getItem(LIKES_KEY)||'[]')); return set.has(id);} catch(_) { return false; } }
+    function toggleLike(id){
+      try {
+        const arr = JSON.parse(localStorage.getItem(LIKES_KEY)||'[]');
+        const set = new Set(arr);
+        if (set.has(id)) set.delete(id); else set.add(id);
+        localStorage.setItem(LIKES_KEY, JSON.stringify([...set]));
+        likeBtn.classList.toggle('liked', set.has(id));
+      } catch(_){}
+    }
+
+    function renderPlaylist(){
+      playlist.innerHTML = '';
+      tracks.forEach((t, k) => {
+        const row = document.createElement('div');
+        row.className = 'row' + (k===i ? ' active' : '');
+        row.innerHTML = `<div>${k+1}. <strong>${t.id}</strong></div><small>${t.audio.split('/').pop()}</small>`;
+        row.addEventListener('click', () => { setTrack(k, true); });
+        playlist.appendChild(row);
+      });
+    }
+
+    function renderQuoteStatic(){
+      // Render static text split by newlines as simple paragraphs
+      quoteText.innerHTML = '';
+      const parts = String(tracks[i].quote || '').split(/\n/);
+      for (const p of parts) {
+        const span = document.createElement('span');
+        span.className = 'cue'; span.textContent = p; quoteText.appendChild(span); quoteText.appendChild(document.createElement('br'));
+      }
+    }
+
+    function setTrack(k, autoPlay=false){
+      i = k; idxEl.textContent = i+1; renderPlaylist();
+      likeBtn.classList.toggle('liked', isLiked(tracks[i].id));
+      audio.src = tracks[i].audio; audio.load();
+
+      // load VTT if present
+      if (tracks[i].vtt) {
+        trackEl.src = tracks[i].vtt; // attach to <audio>
+        // Some browsers need a small delay before accessing textTracks
+        setTimeout(attachCueHandlers, 50);
+      } else {
+        trackEl.src = '';
+        renderQuoteStatic();
+      }
+
+      if (autoPlay) play();
+    }
+
+    function attachCueHandlers(){
+      const list = audio.textTracks; if (!list || list.length===0) { renderQuoteStatic(); return; }
+      const tt = list[0]; tt.mode = 'hidden'; // so cues are available programmatically
+      // Pre-render all cues for scrollable highlighting
+      quoteText.innerHTML = '';
+      const map = new Map();
+      for (const cue of tt.cues || []) {
+        const s = document.createElement('span'); s.className = 'cue'; s.textContent = cue.text; s.dataset.start = cue.startTime; s.dataset.end = cue.endTime; quoteText.appendChild(s); quoteText.appendChild(document.createTextNode(' '));
+        map.set(cue, s);
+        // Seek on click
+        s.addEventListener('click', () => { audio.currentTime = cue.startTime + 0.01; });
+      }
+      tt.oncuechange = () => {
+        // Clear
+        for (const [cue, el] of map.entries()) el.classList.toggle('active', false);
+        for (const cue of tt.activeCues || []) {
+          const el = map.get(cue); if (el) { el.classList.add('active'); el.scrollIntoView({ block:'nearest', inline:'nearest' }); }
+        }
+      };
+    }
+
+    function play(){ audio.play(); playBtn.textContent='⏸'; }
+    function pause(){ audio.pause(); playBtn.textContent='▶'; }
+
+    // ---------- Events ----------
+    playBtn.addEventListener('click', () => audio.paused ? play() : pause());
+    prevBtn.addEventListener('click', () => { if (audio.currentTime>3) { audio.currentTime = 0; } else { setTrack((i-1+tracks.length)%tracks.length, true); } });
+    nextBtn.addEventListener('click', () => { setTrack((i+1)%tracks.length, true); });
+
+    likeBtn.addEventListener('click', () => toggleLike(tracks[i].id));
+
+    themeToggle.addEventListener('click', () => document.body.classList.toggle('light'));
+
+    audio.addEventListener('timeupdate', () => {
+      if (!Number.isFinite(audio.duration)) return;
+      const p = (audio.currentTime / audio.duration) * 100;
+      barFill.style.inset = `0 ${Math.max(0,100-p)}% 0 0`;
+      bar.setAttribute('aria-valuenow', Math.round(p));
+      tcur.textContent = fmt(audio.currentTime); tdur.textContent = fmt(audio.duration);
+      saveLast();
+    });
+
+    audio.addEventListener('ended', () => {
+      if (repeat) { audio.currentTime = 0; play(); return; }
+      if (autonext) {
+        if (shuffle) {
+          let n; do { n = Math.floor(Math.random()*tracks.length); } while (n===i && tracks.length>1);
+          setTrack(n, true);
+        } else {
+          setTrack((i+1)%tracks.length, true);
+        }
+      } else {
+        pause();
+      }
+    });
+
+    // Progress scrubbing
+    function seekFromEvent(evt){
+      const rect = bar.getBoundingClientRect();
+      const p = Math.min(Math.max((evt.clientX - rect.left)/rect.width, 0), 1);
+      if (Number.isFinite(audio.duration)) audio.currentTime = p * audio.duration;
+    }
+    bar.addEventListener('click', seekFromEvent);
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.target && ['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
+      if (e.code === 'Space') { e.preventDefault(); audio.paused ? play() : pause(); }
+      if (e.code === 'ArrowRight') { audio.currentTime = Math.min((audio.currentTime||0) + 5, audio.duration||1e9); }
+      if (e.code === 'ArrowLeft') { audio.currentTime = Math.max((audio.currentTime||0) - 5, 0); }
+      if (e.key.toLowerCase() === 'l') { toggleLike(tracks[i].id); }
+    });
+
+    // Chips
+    function toggleChip(el, flag){ el.classList.toggle('active', flag); el.setAttribute('aria-pressed', String(flag)); }
+    const chipShuffle = document.getElementById('chipShuffle');
+    const chipRepeat  = document.getElementById('chipRepeat');
+    const chipAutonext= document.getElementById('chipAutonext');
+    chipShuffle.addEventListener('click', () => { shuffle = !shuffle; toggleChip(chipShuffle, shuffle); });
+    chipRepeat.addEventListener('click',  () => { repeat  = !repeat;  toggleChip(chipRepeat,  repeat);  });
+    chipAutonext.addEventListener('click',() => { autonext = !autonext; toggleChip(chipAutonext, autonext); });
+
+    // ---------- Init ----------
+    renderPlaylist();
+    setTrack(0, false);
+    restoreLast();
+    renderPlaylist();
+  </script>
 
 
   

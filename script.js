@@ -51,7 +51,7 @@ document.getElementById('prevBtn').addEventListener('click', () => {
     playCurrent();
   }
 });
-
+ 
 document.getElementById('nextBtn').addEventListener('click', () => {
   if (currentIndex < tracks.length - 1) {
     setTrack(currentIndex + 1);
